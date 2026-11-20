@@ -1,4 +1,4 @@
-// Exhibition objects (poster, table, projector, projector screen) and the
+// Exhibition objects (poster, table, projector, projector screen, X-banner) and the
 // shared item build/dispose entry points. The stage lives in shapes.js because
 // it is an editable extruded outline.
 import * as THREE from 'three';
@@ -11,9 +11,13 @@ export const OBJECT_TYPES = {
   table: { label: 'Table', color: '#8b6b4a' },
   projector: { label: 'Projector', color: '#2f3237' },
   screen: { label: 'Projector screen', color: '#ffffff' },
+  xbanner: { label: 'X-banner', color: '#e8edf5' },
 };
 
 const POSTER = { w: 0.6, h: 0.9, d: 0.02 };
+// Standard 60 × 160 cm X-banner: banner hooked onto two crossed poles whose
+// lower ends rest on the floor behind it.
+const XBANNER = { w: 0.6, h: 1.6, bottom: 0.15, d: 0.004, lean: 0.28, pole: 0.009 };
 const TABLE = { w: 1.6, d: 0.8, h: 0.75, top: 0.05, leg: 0.06 };
 const SCREEN = { w: 2.4, h: 1.35, bottom: 0.9, frame: 0.05 };
 
@@ -46,6 +50,27 @@ function buildObject(item, root) {
     root.add(new THREE.Mesh(new THREE.BoxGeometry(POSTER.w, POSTER.h, POSTER.d), [edge, edge, edge, edge, front, edge]));
     root.userData.fillSlots = [{ mat: front, face: 'all', aspect: () => (POSTER.w * s.x) / (POSTER.h * s.y) }];
     root.userData.plainMats = [edge];
+  } else if (item.type === 'xbanner') {
+    const X = XBANNER;
+    const front = makeFillMaterial();
+    const back = plain('#f4f4f4');
+    const poleMat = plain('#3a3d42');
+    const top = X.bottom + X.h;
+    const banner = new THREE.Mesh(new THREE.BoxGeometry(X.w, X.h, X.d), [back, back, back, back, front, back]);
+    banner.position.y = X.bottom + X.h / 2;
+    // Two identical poles crossing in an X behind the banner: one InstancedMesh.
+    const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(X.pole, X.pole, 1, 6), poleMat, 2);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+    [[-1, 1], [1, -1]].forEach(([fx, tx], i) => {
+      const foot = new THREE.Vector3(fx * (X.w / 2 + 0.02), 0, -X.lean); // on the floor, behind
+      const tip = new THREE.Vector3(tx * (X.w / 2), top, -X.d);          // banner's top corner
+      const dir = tip.clone().sub(foot);
+      q.setFromUnitVectors(up, dir.clone().normalize());
+      poles.setMatrixAt(i, m.compose(foot.clone().add(tip).multiplyScalar(0.5), q, new THREE.Vector3(1, dir.length(), 1)));
+    });
+    root.add(banner, poles);
+    root.userData.fillSlots = [{ mat: front, face: 'all', aspect: () => (X.w * s.x) / (X.h * s.y) }];
+    root.userData.plainMats = [back, poleMat];
   } else if (item.type === 'screen') {
     const frameMat = plain('#222428');
     const canvas = makeFillMaterial();

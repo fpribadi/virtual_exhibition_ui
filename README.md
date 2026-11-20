@@ -2,7 +2,7 @@
 
 Design two connected exhibition rooms in the browser: shape the rooms, cut a doorway between them, place shapes and exhibition objects, and dress any surface with your own images. Runs entirely client-side (Vite + Three.js, vanilla JavaScript, no backend) and works on phones and laptops.
 
-**Status:** Phase 1 (Studio mode) is done. Phase 2 (walk-through game mode) and Phase 3 (animated characters) are next. See [docs/SPEC.md](docs/SPEC.md).
+**Status:** Phase 1 (Studio mode) and Phase 2 (walk-through game mode) are built. Phase 3 (animated characters) is next. See [docs/SPEC.md](docs/SPEC.md).
 
 ## Run it
 
@@ -14,6 +14,16 @@ npm run dev
 ```
 
 Open the URL Vite prints (usually http://localhost:5173).
+
+### Pages
+
+| URL | Opens |
+| --- | --- |
+| `/` | Redirects to `/play` |
+| `/play` | The walk-through (game mode) |
+| `/studio` | The editor. Its **▶ Play** button goes to `/play`, and **Exit** in the game comes back. |
+
+Behind a sub-path, the same pages live under it: `/v1/` → `/v1/play`, plus `/v1/studio`. Use these paths without a trailing slash (`/play`, not `/play/`), because the page loads its files relative to the URL. Browser back and forward switch between the two pages.
 
 ### On your phone
 
@@ -84,11 +94,11 @@ On a phone, the panels live in a bottom drawer. Use **Room**, **Add** and **Edit
 
 - **Shapes:** box, cylinder, sphere, triangle prism, and **Custom…**. For a custom shape, tap points on the floor, then tap the first point (or press **Close shape**) to finish. Set its height in the Edit panel.
 - Every shape except the sphere is stored as a point list, so **Edit points** lets you reshape it later.
-- **Objects:** poster and projector screen (placed on the nearest wall), table, stage (an editable platform) and projector.
+- **Objects:** poster and projector screen (placed on the nearest wall), table, stage (an editable platform), projector, and X-banner (a free-standing 60 × 160 cm banner on crossed poles).
 
 ### Image fill
 
-Floors, walls, shapes, the stage, posters and screens can show an uploaded image. On a phone, **Upload image** opens your photo library.
+Floors, walls, shapes, the stage, posters, screens and X-banners can show an uploaded image. On a phone, **Upload image** opens your photo library.
 
 - **Fit:** stretch, cover, contain (with a background colour), or tile (with a repeat count).
 - **Adjust:** offset X/Y, scale, rotate, flip H/V, and reset. Changes preview live.
@@ -101,6 +111,23 @@ Floors, walls, shapes, the stage, posters and screens can show an uploaded image
 - **Open** loads a saved file. **New** starts over from the default layout.
 - The default layout is [src/default-project.json](src/default-project.json). To change it, design a layout, **Save** it, and replace that file with your saved file.
 - Your work is also autosaved in the browser. Very large projects may skip the autosave, so use **Save** for anything you want to keep.
+
+### Game mode (walk-through)
+
+Open `/play`, or press **▶ Play** in the studio, to walk through the rooms in first person. You start in the room you were editing, facing its doorway.
+
+| | Laptop | Phone |
+| --- | --- | --- |
+| Move | W A S D or arrow keys (Shift to run) | Joystick: put your left thumb anywhere on the left side |
+| Look | Click once, then move the mouse | Swipe on the right side |
+| Leave | Esc frees the mouse, then Esc again (or **Exit**) | **Exit** button |
+
+- On phones, the touch controls appear automatically, and you can move and look at the same time with two thumbs. Play in landscape: the app suggests rotating, and **Fullscreen & play** locks landscape where the browser allows it.
+- **Settings (⚙):**
+  - **Step onto low platforms** is on by default and lets you walk up onto the stage.
+  - **Tap to walk** and **Gyroscope look** are off by default. Gyroscope look needs HTTPS, and on iPhone it asks for motion permission.
+- **Collisions:** walls and objects use their real floor outlines, so you can walk close to a triangle's slanted side or around a custom shape. Doorways are open passages.
+- **What gets drawn:** only the room you're in, plus the next room when its doorway is in view. This keeps phones smooth.
 
 ### Fullscreen
 
@@ -119,8 +146,12 @@ src/
   objects.js          poster, table, projector, screen; item build/dispose
   textures.js         image upload/resize, shared texture cache, fill material
   handles.js          touch-friendly corner/point handles
+  game.js             game mode: player movement, mouse/keys/gyro, room culling
+  router.js           /studio and /play URLs (works under any sub-path)
+  collision.js        2D footprint collision for walls and objects
   storage.js          project JSON save/load, autosave
   ui/panels.js        tabs, library, room + properties panels, hint bar, drawer
+  ui/gameHud.js       game overlay: joystick, look zone, settings, start screen
   ui/fillEditor.js    image fill controls
   ui/dom.js           small DOM helpers
   style.css

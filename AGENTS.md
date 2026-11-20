@@ -12,8 +12,8 @@ The full requirements are in [docs/SPEC.md](docs/SPEC.md). Read it before starti
 
 | Phase | Scope | Status |
 | ----- | ----- | ------ |
-| 1 | Studio mode: two rooms, doorway, polygon room editing, shapes, image fill, objects, save/load, touch support | Built, awaiting user testing |
-| 2 | Game mode: WASD/mouse and joystick/swipe controls, 2D polygon collisions, room culling | Blocked on Phase 1 |
+| 1 | Studio mode: two rooms, doorway, polygon room editing, shapes, image fill, objects, save/load, touch support | Done |
+| 2 | Game mode: WASD/mouse and joystick/swipe controls, 2D polygon collisions, room culling | Built, awaiting user testing |
 | 3 | Characters: animated low-poly GLB person | Blocked on Phase 2 |
 
 - Don't start a phase until the user confirms the previous one works.
@@ -55,10 +55,11 @@ src/
   handles.js      # screen-space (44px) corner/point handles
   storage.js      # save/load project JSON, autosave
   default-project.json  # starting layout for first launch and "New" (a saved project file)
-  ui/             # panels.js, fillEditor.js, dom.js
+  ui/             # panels.js, fillEditor.js, gameHud.js (joystick/look/settings), dom.js
   style.css
-  game.js         # Phase 2 (planned): player controller, joystick, mouse look
-  collision.js    # Phase 2 (planned): 2D polygon collision
+  game.js         # game mode: player, WASD/mouse + touch input, gyro, room culling
+  router.js       # <base>/play (default) and <base>/studio; base derived from the URL
+  collision.js    # 2D footprint colliders (walls + items), push-out, step height
   characters.js   # Phase 3 (planned): GLB person, animations
 ```
 
@@ -66,6 +67,8 @@ Key internals:
 - `Studio` (studio.js) is the single owner of project data and scene objects. The UI calls its methods and re-renders on its `structure` event.
 - Pointer handling: `studio.js` listens to `pointerdown` in the **capture** phase so handles can claim a drag before OrbitControls sees it. TransformControls is created **before** OrbitControls in main.js for the same reason.
 - Walls extrude **inward** from the outline. Room walls are always rebuilt together (`rebuildRooms()`), because doorway cuts depend on every room.
+- Game mode reuses the studio's scene. `studio.suspend()`/`resume()` hand input over; `game.update(dt)` runs every frame while active. Colliders are built once on entering game mode (`buildColliders`).
+- Routing: `/` redirects to `/play`. Keep routes free of trailing slashes, because Vite's `base: './'` makes asset URLs relative to the page path. nginx falls back to `index.html` for both routes.
 - Fill textures are clones that share one `THREE.Source` per image (`textures.js`). Always release them with `disposeFillMaterial`.
 
 ## Data model rules

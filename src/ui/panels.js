@@ -1,6 +1,6 @@
 // Panels: room tabs, library, room settings, properties, mode hint bar and
 // the mobile bottom drawer. Re-rendered on studio 'structure' events.
-import { h, slider, numberField, button, segmented } from './dom.js';
+import { h, slider, numberField, button, segmented, canFullscreen, isFullscreen, toggleFullscreen, onFullscreenChange } from './dom.js';
 import { fillEditor } from './fillEditor.js';
 import { SHAPE_TYPES, isPointShape } from '../shapes.js';
 import { OBJECT_TYPES, hasImageFill, itemLabel } from '../objects.js';
@@ -77,17 +77,9 @@ function setupTopbar(studio, toast) {
   };
 
   const fs = $('#btn-fullscreen');
-  const root = document.documentElement;
-  const canFs = document.fullscreenEnabled || document.webkitFullscreenEnabled;
-  if (!canFs) fs.hidden = true;
-  fs.onclick = () => {
-    const active = document.fullscreenElement || document.webkitFullscreenElement;
-    if (active) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-    else (root.requestFullscreen || root.webkitRequestFullscreen).call(root)?.catch?.(() => {});
-  };
-  const syncFs = () => fs.classList.toggle('on', !!(document.fullscreenElement || document.webkitFullscreenElement));
-  document.addEventListener('fullscreenchange', syncFs);
-  document.addEventListener('webkitfullscreenchange', syncFs);
+  if (!canFullscreen()) fs.hidden = true;
+  fs.onclick = () => toggleFullscreen();
+  onFullscreenChange(() => fs.classList.toggle('on', isFullscreen()));
 }
 
 function renderTabs(studio) {
@@ -116,7 +108,7 @@ function renderLibrary(studio) {
     h('div', { class: 'grid' },
       btn('poster', OBJECT_TYPES.poster.label), btn('table', OBJECT_TYPES.table.label),
       btn('stage', SHAPE_TYPES.stage.label), btn('projector', OBJECT_TYPES.projector.label),
-      btn('screen', 'Screen')),
+      btn('screen', 'Screen'), btn('xbanner', OBJECT_TYPES.xbanner.label)),
   );
 }
 

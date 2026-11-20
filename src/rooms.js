@@ -146,6 +146,9 @@ export class RoomView {
     const inner = insetPolygon(pts, T, normals);
     const cuts = doorCuts(project, room);
     let totalLen = 0;
+    // World-space 2D footprints of every wall piece, used for game-mode collision.
+    this.colliders = [];
+    const [ox, oz] = room.offset;
 
     for (let i = 0; i < n; i++) {
       const P0 = pts[i], P1 = pts[(i + 1) % n];
@@ -177,7 +180,9 @@ export class RoomView {
 
       const mid = toLocal([L / 2, T / 2]);
       for (const [poly, y0, y1] of pieces) {
-        const geo = makePrism(poly.map(toLocal), y0, y1, { uv: uvFn, bottom: false });
+        const local = poly.map(toLocal);
+        const geo = makePrism(local, y0, y1, { uv: uvFn, bottom: false });
+        this.colliders.push({ poly: local.map(([x, z]) => [x + ox, z + oz]), bottom: y0, top: y1 });
         const mesh = new THREE.Mesh(geo, this.wallMats);
         mesh.userData = { kind: 'wall', roomId: room.id, edge: i, inward: nrm, center: mid, ghost: false };
         this.walls.add(mesh);

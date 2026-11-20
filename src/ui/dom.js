@@ -55,3 +55,27 @@ export function segmented(options, value, onChange) {
   return h('div', { class: 'seg' }, options.map(([v, text]) =>
     h('button', { type: 'button', class: v === value ? 'on' : '', onClick: () => onChange(v) }, text)));
 }
+
+// ---------- fullscreen (with the webkit prefix older Safari/iPad needs) ----------
+export const canFullscreen = () => !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+export const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+
+export async function enterFullscreen() {
+  const el = document.documentElement;
+  try {
+    await (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  } catch { /* user or browser refused */ }
+}
+
+export function exitFullscreen() {
+  if (isFullscreen()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+}
+
+export function toggleFullscreen() {
+  return isFullscreen() ? exitFullscreen() : enterFullscreen();
+}
+
+export function onFullscreenChange(fn) {
+  document.addEventListener('fullscreenchange', fn);
+  document.addEventListener('webkitfullscreenchange', fn);
+}

@@ -510,6 +510,7 @@ export class Studio extends EventTarget {
   }
 
   onPointerDown(e) {
+    if (this.suspended) return;
     this.pointers.add(e.pointerId);
     if (this.pointers.size > 1) { this.tap = null; return; }
     this.tcGrab = false;
@@ -562,7 +563,7 @@ export class Studio extends EventTarget {
 
   setupKeyboard() {
     window.addEventListener('keydown', (e) => {
-      if (e.target.closest('input, select, textarea')) return;
+      if (this.suspended || e.target.closest('input, select, textarea')) return;
       if (e.key === 'Delete' || e.key === 'Backspace') { this.deleteSelected(); e.preventDefault(); }
       else if (e.key === 'Escape') { if (this.mode !== 'select') this.setMode('select'); else this.deselect(); }
       else if (e.key === 'Enter' && this.mode === 'draw') this.finishDraw();
@@ -639,6 +640,31 @@ export class Studio extends EventTarget {
       this.selectedDoorId = null;
       this.deselect();
     }
+  }
+
+  // ---------- game mode hand-off ----------
+  /** Hide editing aids and stop handling input while game mode runs. */
+  suspend() {
+    this.setMode('select');
+    this.selectedDoorId = null;
+    this.deselect(false);
+    this.suspended = true;
+    this.orbit.enabled = false;
+    for (const v of this.views.values()) {
+      v.setActive(false);
+      v.updateCutaway(this.camera, false); // solid walls in first person
+    }
+  }
+
+  resume() {
+    this.suspended = false;
+    this.orbit.enabled = true;
+    for (const [id, v] of this.views) {
+      v.group.visible = true;
+      v.setActive(id === this.activeRoomId);
+    }
+    this.emit('structure');
+    this.requestRender();
   }
 
   // ---------- per frame ----------

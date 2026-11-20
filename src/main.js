@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { Studio } from './studio.js';
+import { Game } from './game.js';
+import { initRouter } from './router.js';
 import { initUI } from './ui/panels.js';
 import { newProject, loadAutosave } from './storage.js';
 
@@ -57,10 +59,21 @@ const studio = new Studio({ scene, camera, renderer, orbit, tc, canvas, requestR
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   renderer.setSize(w, h, false);
-  camera.aspect = w / Math.max(h, 1);
-  camera.updateProjectionMatrix();
+  for (const cam of [camera, game.camera]) {
+    cam.aspect = w / Math.max(h, 1);
+    cam.updateProjectionMatrix();
+  }
   requestRender();
 }
+
+// Game mode renders every frame, so phones get a lower pixel ratio there.
+function setPixelRatio(max) {
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, max));
+  resize();
+}
+
+const game = new Game({ scene, studio, canvas, setPixelRatio });
+document.getElementById('btn-play').onclick = () => game.enter();
 new ResizeObserver(resize).observe(canvas);
 
 // Block iOS Safari's page pinch-zoom gestures (viewport meta alone isn't enough).
@@ -68,9 +81,19 @@ for (const type of ['gesturestart', 'gesturechange']) {
   document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
 }
 
-// Render only when something changed (saves battery on phones).
-function frame() {
+// Studio renders only when something changed (saves battery on phones);
+// game mode renders continuously.
+let last = performance.now();
+function frame(now = performance.now()) {
   requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (game.active) {
+    game.update(dt);
+    renderer.render(scene, game.camera);
+    dirty = true; // redraw the studio view once we return
+    return;
+  }
   const moving = orbit.update();
   if (!dirty && !moving) return;
   dirty = false;
@@ -82,7 +105,8 @@ function frame() {
   resize();
   await studio.load(loadAutosave() || newProject());
   initUI(studio);
+  initRouter(game); // /studio or /play
   frame();
 })();
 
-if (import.meta.env.DEV) window.studio = studio; // handy for debugging in the console
+if (import.meta.env.DEV) Object.assign(window, { studio, game }); // handy for debugging in the console

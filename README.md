@@ -28,6 +28,27 @@ npm run preview   # serves dist/ locally
 
 `dist/` is a static site, so you can host it anywhere (Netlify, GitHub Pages, any web server).
 
+### Docker
+
+The image builds the site with Node, then serves it with nginx. The final image is about 50 MB and has no Node.js inside.
+
+```bash
+docker compose up -d --build     # http://localhost:8080
+PORT=3000 docker compose up -d   # use a different host port
+docker compose down              # stop
+```
+
+Without Compose:
+
+```bash
+docker build -t room-studio .
+docker run -d -p 8080:80 --name room-studio room-studio
+```
+
+`nginx.conf` caches the hashed files in `/assets/` for a year and makes browsers recheck `index.html` on every visit, so a redeploy shows up right away. The app has no server state, so you can run as many containers as you like behind a load balancer.
+
+**On phones, serve it over HTTPS.** Browsers only allow motion-sensor access (needed for Phase 2's optional gyroscope look) on secure origins. Put the container behind a reverse proxy that handles TLS (Caddy, Traefik, or your platform's load balancer).
+
 ## Using the studio
 
 | Action | Mouse | Touch |

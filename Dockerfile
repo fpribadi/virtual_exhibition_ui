@@ -4,6 +4,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# Each new build gets a unique ID, so browsers drop their old autosave once
+# after a release. Optionally pass a name: --build-arg BUILD_ID=v1.2.0
+ARG BUILD_ID
 RUN npm run build
 
 # --- Runtime stage: serve dist/ with nginx (no Node at runtime) ---

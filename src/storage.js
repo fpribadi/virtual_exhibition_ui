@@ -84,6 +84,28 @@ export function loadAutosave() {
   }
 }
 
+/* global __BUILD_ID__ */
+const BUILD_KEY = 'room-studio:build';
+export const BUILD_ID = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev';
+
+/**
+ * Called once at startup. If this is a new release since the browser's last
+ * visit, delete the old autosave so the new default layout loads.
+ * Returns true when an older release's autosave was cleared.
+ */
+export function checkRelease() {
+  try {
+    const seen = localStorage.getItem(BUILD_KEY);
+    if (seen === BUILD_ID) return false;
+    const hadAutosave = localStorage.getItem(AUTOSAVE_KEY) !== null;
+    localStorage.removeItem(AUTOSAVE_KEY);
+    localStorage.setItem(BUILD_KEY, BUILD_ID);
+    return seen !== null && hadAutosave;
+  } catch {
+    return false; // storage blocked: nothing cached anyway
+  }
+}
+
 export function clearAutosave() {
   try { localStorage.removeItem(AUTOSAVE_KEY); } catch { /* ignore */ }
 }

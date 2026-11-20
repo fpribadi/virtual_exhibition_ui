@@ -55,7 +55,7 @@ docker build -t room-studio .
 docker run -d -p 8080:80 --name room-studio room-studio
 ```
 
-`nginx.conf` caches the hashed files in `/assets/` for a year and makes browsers recheck `index.html` on every visit, so a redeploy shows up right away. The app has no server state, so you can run as many containers as you like behind a load balancer.
+`nginx.conf` caches the hashed files in `/assets/` for a year and makes browsers recheck `index.html` on every visit, so a redeploy shows up right away. Each image build is a new release, which clears visitors' old autosave once (see Saving). To name a release, add `--build-arg BUILD_ID=v1.2.0`. If the source hasn't changed, Docker reuses the cached build, which keeps the same ID and clears nothing. The app has no server state, so you can run as many containers as you like behind a load balancer.
 
 **Serving under a sub-path** (e.g. `https://base.domain.com/v1/`): the build uses relative asset URLs, so the same image works at the root or under any path. Two things to check on the reverse proxy:
 - Strip the prefix before forwarding, so the container receives `/assets/...` and not `/v1/assets/...`. In nginx, that's `location /v1/ { proxy_pass http://room-studio:80/; }`. The trailing `/` on `proxy_pass` is what strips the prefix.
@@ -111,6 +111,7 @@ Floors, walls, shapes, the stage, posters, screens and X-banners can show an upl
 - **Open** loads a saved file. **New** starts over from the default layout.
 - The default layout is [src/default-project.json](src/default-project.json). To change it, design a layout, **Save** it, and replace that file with your saved file.
 - Your work is also autosaved in the browser. Very large projects may skip the autosave, so use **Save** for anything you want to keep.
+- **After a new release, the autosave is cleared.** Every production build has its own build ID. On the first visit after a release, the browser deletes its old autosave and loads the new default layout, with a short "Updated to a new version" notice. Save a file first if you want to keep an older layout. Game settings (look speed and so on) are kept.
 
 ### Game mode (walk-through)
 

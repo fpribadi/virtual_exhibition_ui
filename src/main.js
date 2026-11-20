@@ -7,7 +7,7 @@ import { Studio } from './studio.js';
 import { Game } from './game.js';
 import { initRouter } from './router.js';
 import { initUI } from './ui/panels.js';
-import { newProject, loadAutosave } from './storage.js';
+import { newProject, loadAutosave, checkRelease } from './storage.js';
 
 const canvas = document.getElementById('c');
 const coarse = window.matchMedia('(pointer: coarse)').matches;
@@ -103,9 +103,11 @@ function frame(now = performance.now()) {
 
 (async () => {
   resize();
+  const updated = checkRelease(); // new release -> drop the old autosave
   await studio.load(loadAutosave() || newProject());
   initUI(studio);
   initRouter(game); // /studio or /play
+  if (updated) studio.toast('Updated to a new version. Loaded the latest layout.');
   frame();
 })();
 

@@ -47,6 +47,10 @@ docker run -d -p 8080:80 --name room-studio room-studio
 
 `nginx.conf` caches the hashed files in `/assets/` for a year and makes browsers recheck `index.html` on every visit, so a redeploy shows up right away. The app has no server state, so you can run as many containers as you like behind a load balancer.
 
+**Serving under a sub-path** (e.g. `https://base.domain.com/v1/`): the build uses relative asset URLs, so the same image works at the root or under any path. Two things to check on the reverse proxy:
+- Strip the prefix before forwarding, so the container receives `/assets/...` and not `/v1/assets/...`. In nginx, that's `location /v1/ { proxy_pass http://room-studio:80/; }`. The trailing `/` on `proxy_pass` is what strips the prefix.
+- Redirect `/v1` to `/v1/`. Without the trailing slash, the browser resolves `./assets/...` against the domain root, and the files 404.
+
 **On phones, serve it over HTTPS.** Browsers only allow motion-sensor access (needed for Phase 2's optional gyroscope look) on secure origins. Put the container behind a reverse proxy that handles TLS (Caddy, Traefik, or your platform's load balancer).
 
 ## Using the studio

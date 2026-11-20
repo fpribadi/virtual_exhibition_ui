@@ -4,7 +4,7 @@
 //
 // Multi-touch: each finger is tracked by pointerId, so one thumb can hold the
 // joystick while the other looks around.
-import { h, button, checkbox, slider, canFullscreen, isFullscreen, toggleFullscreen, enterFullscreen, onFullscreenChange } from './dom.js';
+import { h, button, checkbox, slider, selectField, canFullscreen, isFullscreen, toggleFullscreen, enterFullscreen, onFullscreenChange } from './dom.js';
 
 const JOY_RADIUS = 56; // px of knob travel
 const JOY_DEADZONE = 0.12;
@@ -35,8 +35,9 @@ export class GameHud {
         h('p', {}, 'Turn your phone sideways for the best view.'),
         button('Play in portrait', () => { this.rotateDismissed = true; this.updateRotate(); })));
 
+    this.cross = h('div', { class: 'g-cross' });
     this.root = h('div', { id: 'game-hud', hidden: true },
-      h('div', { class: 'g-cross' }),
+      this.cross,
       this.joyEl,
       this.help,
       h('div', { class: 'g-top' }, this.fsBtn, settingsBtn, button('Exit', () => game.exit(), 'g-btn')),
@@ -87,8 +88,8 @@ export class GameHud {
     this.start.replaceChildren(h('div', { class: 'g-card' },
       h('h2', {}, 'Walk-through'),
       touch
-        ? h('p', {}, 'Left thumb: move. Right thumb: swipe to look around.')
-        : h('p', {}, 'W A S D or arrow keys to move, Shift to run, mouse to look. Esc frees the mouse, then Esc again leaves.'),
+        ? h('p', {}, 'Left thumb: move. Right thumb: swipe to look around. Switch between your character and first person in ⚙.')
+        : h('p', {}, 'W A S D or arrow keys to move, Shift to run, mouse to look, V to switch between your character and first person. Esc frees the mouse, then Esc again leaves.'),
       h('div', { class: 'row buttons' }, actions),
     ));
     this.start.hidden = false;
@@ -115,6 +116,12 @@ export class GameHud {
     this.help.textContent = 'Click to look around · Esc to leave';
   }
 
+  /** Centre dot only makes sense when looking through the character's eyes. */
+  updateView() {
+    this.cross.hidden = this.game.settings.view === 'third' && !!this.game.avatar;
+    if (!this.panel.hidden) this.renderPanel();
+  }
+
   updateRotate() {
     const portrait = window.innerHeight > window.innerWidth;
     this.rotate.hidden = !(this.game.active && this.game.touch && portrait && !this.rotateDismissed);
@@ -129,7 +136,10 @@ export class GameHud {
   renderPanel() {
     const g = this.game;
     const s = g.settings;
-    const nodes = [h('h2', {}, 'Settings')];
+    const nodes = [
+      h('h2', {}, 'Settings'),
+      selectField('View', s.view, [['third', 'Your character'], ['first', 'First person']], (v) => g.setView(v)),
+    ];
     if (g.touch) {
       nodes.push(
         checkbox('Tap to walk', s.tapToWalk, (v) => g.setSetting('tapToWalk', v)),
@@ -144,7 +154,7 @@ export class GameHud {
       slider('Look speed', s.lookSpeed, { min: 0.3, max: 2.5, step: 0.05, onInput: (v) => g.setSetting('lookSpeed', v) }),
       h('div', { class: 'row buttons' }, button('Close', () => this.togglePanel())),
     );
-    if (g.gyroError) nodes.splice(3, 0, h('p', { class: 'warn small' }, g.gyroError));
+    if (g.gyroError) nodes.splice(4, 0, h('p', { class: 'warn small' }, g.gyroError));
     this.panel.replaceChildren(...nodes);
   }
 

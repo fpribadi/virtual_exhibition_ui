@@ -1,10 +1,11 @@
-// Exhibition objects (poster, table, projector, projector screen, X-banner) and the
+// Exhibition objects (poster, table, projector, projector screen, X-banner, person) and the
 // shared item build/dispose entry points. The stage lives in shapes.js because
 // it is an editable extruded outline.
 import * as THREE from 'three';
 import { defaultFill, makeFillMaterial, disposeFillMaterial, applyFill } from './textures.js';
 import { uid } from './rooms.js';
 import { SHAPE_TYPES, buildShape, applyShapeFill } from './shapes.js';
+import { buildPerson, disposePerson } from './characters.js';
 
 export const OBJECT_TYPES = {
   poster: { label: 'Poster', color: '#f2efe8' },
@@ -12,6 +13,7 @@ export const OBJECT_TYPES = {
   projector: { label: 'Projector', color: '#2f3237' },
   screen: { label: 'Projector screen', color: '#ffffff' },
   xbanner: { label: 'X-banner', color: '#e8edf5' },
+  person: { label: 'Person', color: '#ca9337' },
 };
 
 const POSTER = { w: 0.6, h: 0.9, d: 0.02 };
@@ -23,7 +25,7 @@ const SCREEN = { w: 2.4, h: 1.35, bottom: 0.9, frame: 0.05 };
 
 export function createObjectItem(type) {
   const def = OBJECT_TYPES[type];
-  return {
+  const item = {
     id: uid('item'),
     type,
     name: def.label,
@@ -32,10 +34,13 @@ export function createObjectItem(type) {
     scale: [1, 1, 1],
     fill: defaultFill(def.color),
   };
+  // idle | patrol (walk back and forth along the direction it faces)
+  if (type === 'person') Object.assign(item, { behavior: 'idle', patrol: 3, wave: true });
+  return item;
 }
 
 export function hasImageFill(item) {
-  return item.type !== 'table' && item.type !== 'projector';
+  return !['table', 'projector', 'person'].includes(item.type);
 }
 
 const plain = (color) => new THREE.MeshLambertMaterial({ color });
@@ -43,7 +48,9 @@ const plain = (color) => new THREE.MeshLambertMaterial({ color });
 function buildObject(item, root) {
   const color = item.fill.color;
   const s = root.scale;
-  if (item.type === 'poster') {
+  if (item.type === 'person') {
+    buildPerson(item, root); // model loads asynchronously and attaches itself
+  } else if (item.type === 'poster') {
     const front = makeFillMaterial();
     const edge = plain('#d8d4cc');
     // BoxGeometry groups: +x, -x, +y, -y, +z (front), -z
@@ -139,7 +146,8 @@ export function applyItemFill(root) {
 }
 
 export function disposeItem(root) {
-  root.traverse((o) => o.geometry?.dispose());
+  if (root.userData.item.type === 'person') disposePerson(root);
+  root.traverse((o) => { if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
   for (const slot of root.userData.fillSlots || []) disposeFillMaterial(slot.mat);
   for (const m of new Set(root.userData.plainMats || [])) m.dispose();
   root.removeFromParent();

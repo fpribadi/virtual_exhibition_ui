@@ -1,6 +1,6 @@
 // Panels: room tabs, library, room settings, properties, mode hint bar and
 // the mobile bottom drawer. Re-rendered on studio 'structure' events.
-import { h, slider, numberField, button, segmented, canFullscreen, isFullscreen, toggleFullscreen, onFullscreenChange } from './dom.js';
+import { h, slider, numberField, button, segmented, selectField, checkbox, canFullscreen, isFullscreen, toggleFullscreen, onFullscreenChange } from './dom.js';
 import { fillEditor } from './fillEditor.js';
 import { SHAPE_TYPES, isPointShape } from '../shapes.js';
 import { OBJECT_TYPES, hasImageFill, itemLabel } from '../objects.js';
@@ -108,7 +108,8 @@ function renderLibrary(studio) {
     h('div', { class: 'grid' },
       btn('poster', OBJECT_TYPES.poster.label), btn('table', OBJECT_TYPES.table.label),
       btn('stage', SHAPE_TYPES.stage.label), btn('projector', OBJECT_TYPES.projector.label),
-      btn('screen', 'Screen'), btn('xbanner', OBJECT_TYPES.xbanner.label)),
+      btn('screen', 'Screen'), btn('xbanner', OBJECT_TYPES.xbanner.label),
+      btn('person', OBJECT_TYPES.person.label)),
   );
 }
 
@@ -208,6 +209,18 @@ function renderProps(studio, toast) {
     nodes.push(
       slider('Height', item.height, { min: 0.05, max: 6, step: 0.05, onInput: (v) => studio.updateItem(item, { height: v }, true) }),
       h('div', { class: 'row buttons' }, button('Edit points', () => studio.setMode('points'))),
+    );
+  } else if (item.type === 'person') {
+    nodes.push(
+      h('h3', {}, 'In the walk-through'),
+      selectField('Behaviour', item.behavior || 'idle', [['idle', 'Stand still'], ['patrol', 'Walk back and forth']], (v) => {
+        item.behavior = v; studio.changed(); studio.emit('structure');
+      }),
+      ...(item.behavior === 'patrol' ? [
+        slider('Walk distance', item.patrol ?? 3, { min: 1, max: 10, step: 0.5, fmt: (v) => `${(+v).toFixed(1)} m`, onInput: (v) => { item.patrol = v; studio.changed(); } }),
+        h('p', { class: 'muted small' }, 'Walks forward the way it faces, then back. Rotate it to set the direction.'),
+      ] : []),
+      checkbox('Wave when a visitor comes close', item.wave !== false, (v) => { item.wave = v; studio.changed(); }),
     );
   } else if (item.type === 'sphere') {
     nodes.push(slider('Radius', item.radius, { min: 0.05, max: 3, step: 0.05, onInput: (v) => studio.updateItem(item, { radius: v }, true) }));

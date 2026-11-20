@@ -13,8 +13,8 @@ The full requirements are in [docs/SPEC.md](docs/SPEC.md). Read it before starti
 | Phase | Scope | Status |
 | ----- | ----- | ------ |
 | 1 | Studio mode: two rooms, doorway, polygon room editing, shapes, image fill, objects, save/load, touch support | Done |
-| 2 | Game mode: WASD/mouse and joystick/swipe controls, 2D polygon collisions, room culling | Built, awaiting user testing |
-| 3 | Characters: animated low-poly GLB person | Blocked on Phase 2 |
+| 2 | Game mode: WASD/mouse and joystick/swipe controls, 2D polygon collisions, room culling | Done |
+| 3 | Characters: animated low-poly GLB person | Built, awaiting user testing |
 
 - Don't start a phase until the user confirms the previous one works.
 - When you finish a phase, stop. Tell the user how to test it on both a laptop and a phone, then wait for their go-ahead.
@@ -60,7 +60,7 @@ src/
   game.js         # game mode: player, WASD/mouse + touch input, gyro, room culling
   router.js       # <base>/play (default) and <base>/studio; base derived from the URL
   collision.js    # 2D footprint colliders (walls + items), push-out, step height
-  characters.js   # Phase 3 (planned): GLB person, animations
+  characters.js   # person: lazy-loaded GLB (public/models/person.glb, CC0), idle/walk/wave, Crowd behaviour
 ```
 
 Key internals:
@@ -69,6 +69,8 @@ Key internals:
 - Walls extrude **inward** from the outline. Room walls are always rebuilt together (`rebuildRooms()`), because doorway cuts depend on every room.
 - Game mode reuses the studio's scene. `studio.suspend()`/`resume()` hand input over; `game.update(dt)` runs every frame while active. Colliders are built once on entering game mode (`buildColliders`).
 - Routing: `/` redirects to `/play`. Keep routes free of trailing slashes, because Vite's `base: './'` makes asset URLs relative to the page path. nginx falls back to `index.html` for both routes.
+- The player is an avatar (`createAvatar` in characters.js) followed by a third-person camera (`placeThirdPersonCamera` in game.js, which raycasts wall meshes to avoid clipping). `settings.view` switches to first person (`'first'`).
+- People: the GLB and GLTFLoader load via dynamic import only when a person exists or game mode starts. Clones share geometry (`geometry.userData.shared`), so never dispose it per person. People are left out of the static colliders because they move; `Crowd` pushes the player out instead.
 - Fill textures are clones that share one `THREE.Source` per image (`textures.js`). Always release them with `disposeFillMaterial`.
 
 ## Data model rules

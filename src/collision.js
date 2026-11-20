@@ -56,11 +56,14 @@ export function itemCollider(root) {
   return { poly, bottom: world.min.y, top: world.max.y };
 }
 
-/** All colliders for the current project (walls + items), built once per game session. */
+/** Static colliders (walls + items, not people), built once per game session. */
 export function buildColliders(views, roots) {
   const list = [];
   for (const v of views.values()) list.push(...v.colliders);
-  for (const root of roots.values()) list.push(itemCollider(root));
+  for (const root of roots.values()) {
+    if (root.userData.item.type === 'person') continue; // people move; handled by Crowd
+    list.push(itemCollider(root));
+  }
   for (const c of list) c.box = bbox(c.poly);
   return list;
 }
@@ -95,8 +98,7 @@ function pushOut(p, r, c) {
 }
 
 /** Move from p by (mx, mz) without passing through anything. Returns the new [x, z]. */
-export function moveWithCollision(p, mx, mz, feet, step, colliders) {
-  const r = PLAYER.radius;
+export function moveWithCollision(p, mx, mz, feet, step, colliders, r = PLAYER.radius) {
   const solid = colliders.filter((c) => blocks(c, feet, step));
   const steps = Math.max(1, Math.ceil(Math.hypot(mx, mz) / (r * 0.5)));
   const out = [p[0], p[1]];

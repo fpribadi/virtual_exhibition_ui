@@ -2,7 +2,7 @@
 
 Design two connected exhibition rooms in the browser: shape the rooms, cut a doorway between them, place shapes and exhibition objects, and dress any surface with your own images. Runs entirely client-side (Vite + Three.js, vanilla JavaScript, no backend) and works on phones and laptops.
 
-**Status:** Phase 1 (Studio mode) and Phase 2 (walk-through game mode) are built. Phase 3 (animated characters) is next. See [docs/SPEC.md](docs/SPEC.md).
+**Status:** All three phases are built: Studio mode, the walk-through (game mode), and animated characters. See [docs/SPEC.md](docs/SPEC.md).
 
 ## Run it
 
@@ -95,6 +95,7 @@ On a phone, the panels live in a bottom drawer. Use **Room**, **Add** and **Edit
 - **Shapes:** box, cylinder, sphere, triangle prism, and **Custom…**. For a custom shape, tap points on the floor, then tap the first point (or press **Close shape**) to finish. Set its height in the Edit panel.
 - Every shape except the sphere is stored as a point list, so **Edit points** lets you reshape it later.
 - **Objects:** poster and projector screen (placed on the nearest wall), table, stage (an editable platform), projector, and X-banner (a free-standing 60 × 160 cm banner on crossed poles).
+- **Person:** an extra animated character you can place, like a guide or another visitor. (In the walk-through you play as the same character model.) In the studio it stands in its idle pose. In the walk-through it either stands still (idle animation) or walks back and forth along the direction it faces (**Walk distance**, 1–10 m). It turns and waves when a visitor comes within about 2 m (you can switch this off). You can change its colour. The model downloads only when a project contains a person.
 
 ### Image fill
 
@@ -115,18 +116,20 @@ Floors, walls, shapes, the stage, posters, screens and X-banners can show an upl
 
 ### Game mode (walk-through)
 
-Open `/play`, or press **▶ Play** in the studio, to walk through the rooms in first person. You start in the room you were editing, facing its doorway.
+Open `/play`, or press **▶ Play** in the studio, to walk through the rooms **as your own character**. A third-person camera follows it from behind. It walks when you move, runs when you hold Shift, idles when you stop, and turns to face the way you're going. Press **V** (or use ⚙ → **View**) to switch to first person and back. Your choice is remembered. You start in the room you were editing, facing its doorway.
 
 | | Laptop | Phone |
 | --- | --- | --- |
 | Move | W A S D or arrow keys (Shift to run) | Joystick: put your left thumb anywhere on the left side |
 | Look | Click once, then move the mouse | Swipe on the right side |
+| Switch view | **V** | ⚙ → **View** |
 | Leave | Esc frees the mouse, then Esc again (or **Exit**) | **Exit** button |
 
 - On phones, the touch controls appear automatically, and you can move and look at the same time with two thumbs. Play in landscape: the app suggests rotating, and **Fullscreen & play** locks landscape where the browser allows it.
 - **Settings (⚙):**
   - **Step onto low platforms** is on by default and lets you walk up onto the stage.
   - **Tap to walk** and **Gyroscope look** are off by default. Gyroscope look needs HTTPS, and on iPhone it asks for motion permission.
+- **Camera:** when a wall is behind your character, the camera moves in so it never ends up inside the wall. If it gets very close, your character is hidden until there's room again.
 - **Collisions:** walls and objects use their real floor outlines, so you can walk close to a triangle's slanted side or around a custom shape. Doorways are open passages.
 - **What gets drawn:** only the room you're in, plus the next room when its doorway is in view. This keeps phones smooth.
 
@@ -150,12 +153,14 @@ src/
   game.js             game mode: player movement, mouse/keys/gyro, room culling
   router.js           /studio and /play URLs (works under any sub-path)
   collision.js        2D footprint collision for walls and objects
+  characters.js       person: lazy-loaded GLB, idle/walk/wave, walk-through behaviour
   storage.js          project JSON save/load, autosave
   ui/panels.js        tabs, library, room + properties panels, hint bar, drawer
   ui/gameHud.js       game overlay: joystick, look zone, settings, start screen
   ui/fillEditor.js    image fill controls
   ui/dom.js           small DOM helpers
   style.css
+public/models/        person.glb (character model) + CREDITS.md
 docs/SPEC.md          full product requirements
 ```
 
@@ -166,3 +171,7 @@ docs/SPEC.md          full product requirements
 - Table legs and screen stand legs use `InstancedMesh`.
 - Deleting an object disposes its geometries, materials and texture references.
 - Image adjustments change only texture offset, repeat and rotation. Geometry isn't rebuilt.
+
+## Credits
+
+The person character is **RobotExpressive** by [Tomás Laulhé (Quaternius)](https://www.patreon.com/quaternius), with modifications by [Don McCurdy](https://donmccurdy.com/). It's released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain) and taken from the three.js r170 examples. See [public/models/CREDITS.md](public/models/CREDITS.md).

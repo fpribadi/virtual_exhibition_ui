@@ -6,6 +6,7 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { Studio } from './studio.js';
 import { Game } from './game.js';
 import { initRouter } from './router.js';
+import { setModelReadyCallback } from './characters.js';
 import { initUI } from './ui/panels.js';
 import { newProject, loadAutosave, checkRelease } from './storage.js';
 
@@ -55,6 +56,7 @@ orbit.addEventListener('change', requestRender);
 tc.addEventListener('change', requestRender);
 
 const studio = new Studio({ scene, camera, renderer, orbit, tc, canvas, requestRender });
+setModelReadyCallback(requestRender); // redraw once a person's model has loaded
 
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;

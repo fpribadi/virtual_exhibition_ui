@@ -1,4 +1,5 @@
-// Game mode: first-person walk-through of the same scene the studio edits.
+// Game mode: walk through the scene the studio edits, as your own character
+// (third person, default) or through its eyes (first person, V to switch).
 //
 // Laptops: WASD/arrows + pointer-lock mouse look. Phones: on-screen joystick +
 // swipe look (see ui/gameHud.js). Collision uses 2D footprints (collision.js).
@@ -9,14 +10,20 @@ import { PLAYER, STEP_HEIGHT, NO_STEP, buildColliders, moveWithCollision, ground
 import { pointInPolygon, centroid } from './geometry.js';
 import { worldOutline, doorwayFrame, doorwayRooms } from './rooms.js';
 import { GameHud } from './ui/gameHud.js';
+import { Crowd, createAvatar } from './characters.js';
 
 const SETTINGS_KEY = 'room-studio:game-settings';
-const DEFAULT_SETTINGS = { tapToWalk: false, gyro: false, stepUp: true, lookSpeed: 1 };
+const DEFAULT_SETTINGS = { tapToWalk: false, gyro: false, stepUp: true, lookSpeed: 1, view: 'third' };
 const WALK_SPEED = 2.2;
 const RUN_SPEED = 4;
 const GRAVITY = 9.8;
 const MOUSE_LOOK = 0.0022; // rad per px
 const TOUCH_LOOK = 0.0055;
+// Third-person camera: orbits a point at the avatar's shoulders.
+const CAM_PIVOT = 1.6; // m above the feet (just above the head, so you look over it)
+const CAM_DISTANCE = 2.8; // m behind
+const CAM_WALL_GAP = 0.2; // stay this far in front of a wall behind the avatar
+const CAM_HIDE_AVATAR = 1.0; // closer than this, hide the avatar so it doesn't fill the screen
 
 function loadSettings() {
   try {
@@ -50,6 +57,9 @@ export class Game {
     this.frustum = new THREE.Frustum();
     this.projScreen = new THREE.Matrix4();
     this.raycaster = new THREE.Raycaster();
+    this.avatar = null; // loaded on first entry
+    this.avatarYaw = 0;
+    this.camDist = CAM_DISTANCE;
     this.onModeChange = null; // set by the router: (active) => void
     this.hud = new GameHud(this);
     this.hud.setTouch(this.touch);
@@ -81,6 +91,8 @@ export class Game {
     document.body.dataset.app = 'game';
 
     this.colliders = buildColliders(studio.views, studio.roots);
+    this.wallMeshes = [...studio.views.values()].flatMap((v) => v.walls.children);
+    this.crowd = new Crowd(studio.roots.values());
     this.outlines = project.rooms.map((r) => ({ id: r.id, poly: worldOutline(r) }));
     this.doors = project.doorways.map((d) => {
       const f = doorwayFrame(project, d);
@@ -104,6 +116,10 @@ export class Game {
     this.pitch = 0;
     const door = this.doors.find((d) => d.rooms.includes(room.id));
     this.yaw = door ? Math.atan2(-(door.center[0] - this.pos[0]), -(door.center[1] - this.pos[1])) : 0;
+    this.avatarYaw = this.yaw + Math.PI; // the model faces +z; the camera looks along -z
+    this.pitch = this.settings.view === 'third' ? -0.25 : 0;
+    this.camDist = CAM_DISTANCE;
+    this.ensureAvatar();
     this.currentRoom = room.id;
     this.keys.clear();
     this.walkTarget = null;
@@ -123,11 +139,41 @@ export class Game {
     this.disableGyro();
     this.settings.gyro = false;
     this.hud.hide();
+    if (this.avatar) this.avatar.root.visible = false;
+    this.crowd?.restore(); // people go back to where the studio placed them
     for (const v of this.studio.views.values()) v.group.visible = true;
     document.body.dataset.app = 'studio';
     this.setPixelRatio(2);
     this.studio.resume();
     this.onModeChange?.(false);
+  }
+
+  // ---------- your character ----------
+  ensureAvatar() {
+    if (this.avatar || this.avatarLoading) {
+      this.syncAvatarVisibility();
+      return;
+    }
+    this.avatarLoading = createAvatar().then((a) => {
+      this.avatar = a;
+      this.scene.add(a.root);
+      this.syncAvatarVisibility();
+    }).catch((err) => {
+      console.warn('Avatar failed to load; staying in first person.', err);
+    });
+  }
+
+  syncAvatarVisibility() {
+    if (this.avatar) this.avatar.root.visible = this.active && this.settings.view === 'third';
+    this.hud.updateView();
+  }
+
+  setView(view) {
+    if (view === this.settings.view) return;
+    this.setSetting('view', view);
+    this.pitch = view === 'third' ? -0.25 : 0;
+    this.camDist = CAM_DISTANCE;
+    this.syncAvatarVisibility();
   }
 
   // ---------- input ----------
@@ -145,6 +191,7 @@ export class Game {
     if (!this.active) return;
     if (e.target.closest?.('input, select, textarea')) return;
     if (down && e.code === 'Escape' && !this.locked) { this.exit(); return; }
+    if (down && e.code === 'KeyV' && !e.repeat) { this.setView(this.settings.view === 'third' ? 'first' : 'third'); return; }
     if (down) this.keys.add(e.code); else this.keys.delete(e.code);
     if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   }
@@ -226,7 +273,8 @@ export class Game {
 
   // ---------- per frame ----------
   update(dt) {
-    this.pitch = THREE.MathUtils.clamp(this.pitch, -1.45, 1.45);
+    const third = this.settings.view === 'third' && this.avatar;
+    this.pitch = third ? THREE.MathUtils.clamp(this.pitch, -1.2, 0.35) : THREE.MathUtils.clamp(this.pitch, -1.45, 1.45);
     const k = this.keys;
     let f = 0, s = 0;
     if (k.has('KeyW') || k.has('ArrowUp')) f += 1;
@@ -236,12 +284,14 @@ export class Game {
     f -= this.hud.joy.y;
     s += this.hud.joy.x;
 
-    let mx = 0, mz = 0, expected = 0;
+    let mx = 0, mz = 0, expected = 0, intent = 0;
+    const running = k.has('ShiftLeft') || k.has('ShiftRight');
     if (f || s) {
       this.walkTarget = null;
       const len = Math.hypot(f, s);
       if (len > 1) { f /= len; s /= len; }
-      const speed = (k.has('ShiftLeft') || k.has('ShiftRight') ? RUN_SPEED : WALK_SPEED) * dt;
+      intent = Math.min(1, len);
+      const speed = (running ? RUN_SPEED : WALK_SPEED) * dt;
       const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
       mx = (-sin * f + cos * s) * speed; // forward = (-sin, -cos), right = (cos, -sin)
       mz = (-cos * f - sin * s) * speed;
@@ -251,6 +301,7 @@ export class Game {
       if (d < 0.15) this.walkTarget = null;
       else {
         expected = Math.min(d, WALK_SPEED * dt);
+        intent = 1;
         mx = (dx / d) * expected;
         mz = (dz / d) * expected;
       }
@@ -266,6 +317,11 @@ export class Game {
       }
       this.pos = next;
     }
+    if (this.crowd.people.length) {
+      // People move, so they push the visitor out directly; then re-check walls.
+      this.crowd.pushPlayer(this.pos);
+      this.pos = moveWithCollision(this.pos, 0, 0, this.feet, step, this.colliders);
+    }
 
     // Step up onto low platforms smoothly; fall back down with gravity.
     const g = groundAt(this.pos, this.feet, step, this.colliders);
@@ -279,9 +335,50 @@ export class Game {
       if (this.feet === g) this.vy = 0;
     }
 
-    this.camera.position.set(this.pos[0], this.feet + PLAYER.eye, this.pos[1]);
-    this.camera.rotation.set(this.pitch, this.yaw, 0);
+    if (third) this.placeThirdPersonCamera(dt);
+    else {
+      this.camera.position.set(this.pos[0], this.feet + PLAYER.eye, this.pos[1]);
+      this.camera.rotation.set(this.pitch, this.yaw, 0);
+    }
+    if (this.avatar) this.updateAvatar(dt, mx, mz, intent, running);
     this.updateVisibility();
+    this.crowd.update(dt, this.pos, this.colliders);
+  }
+
+  /** Orbit camera behind the avatar; pulls in when a wall is in the way. */
+  placeThirdPersonCamera(dt) {
+    const pivot = new THREE.Vector3(this.pos[0], this.feet + CAM_PIVOT, this.pos[1]);
+    const cp = Math.cos(this.pitch);
+    const look = new THREE.Vector3(-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp);
+    const back = look.clone().negate();
+    this.raycaster.set(pivot, back);
+    this.raycaster.far = CAM_DISTANCE + CAM_WALL_GAP;
+    const hit = this.raycaster.intersectObjects(this.wallMeshes, false)[0];
+    const want = hit ? Math.max(0.35, hit.distance - CAM_WALL_GAP) : CAM_DISTANCE;
+    // snap in instantly (never show the inside of a wall), ease back out
+    this.camDist = want < this.camDist ? want : this.camDist + (want - this.camDist) * Math.min(1, dt * 4);
+    this.camera.position.copy(pivot).addScaledVector(back, this.camDist);
+    this.camera.position.y = Math.max(this.camera.position.y, this.feet + 0.25); // not under the floor
+    this.camera.rotation.set(this.pitch, this.yaw, 0);
+  }
+
+  updateAvatar(dt, mx, mz, intent, running) {
+    const a = this.avatar;
+    a.root.position.set(this.pos[0], this.feet, this.pos[1]);
+    const moving = dt > 0 && Math.hypot(mx, mz) / dt > 0.2;
+    if (moving) {
+      // turn to face where we're going (the model faces +z)
+      let diff = Math.atan2(mx, mz) - this.avatarYaw;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      this.avatarYaw += diff * Math.min(1, dt * 12);
+      a.setMotion(running ? 'run' : 'walk', running ? 1 : intent);
+    } else {
+      a.setMotion('idle');
+    }
+    a.root.rotation.y = this.avatarYaw;
+    // Backed against a wall the camera sits inside the character's head: hide it until there's room.
+    a.root.visible = this.settings.view === 'third' && this.camDist >= CAM_HIDE_AVATAR;
+    a.update(dt);
   }
 
   updateVisibility() {

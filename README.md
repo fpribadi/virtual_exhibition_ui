@@ -95,7 +95,7 @@ On a phone, the panels live in a bottom drawer. Use **Room**, **Add** and **Edit
 - **Shapes:** box, cylinder, sphere, triangle prism, and **Custom…**. For a custom shape, tap points on the floor, then tap the first point (or press **Close shape**) to finish. Set its height in the Edit panel.
 - Every shape except the sphere is stored as a point list, so **Edit points** lets you reshape it later.
 - **Objects:** poster and projector screen (placed on the nearest wall), table, stage (an editable platform), projector, and X-banner (a free-standing 60 × 160 cm banner on crossed poles).
-- **Person:** an extra animated character you can place, like a guide or another visitor. (In the walk-through you play as the same character model.) In the studio it stands in its idle pose. In the walk-through it either stands still (idle animation) or walks back and forth along the direction it faces (**Walk distance**, 1–10 m). It turns and waves when a visitor comes within about 2 m (you can switch this off). You can change its colour. The model downloads only when a project contains a person.
+- **Person:** an extra animated character you can place, like a guide or another visitor. (In the walk-through you play as the same character model.) In the studio it stands in its idle pose. In the walk-through it either stands still (idle animation) or walks back and forth along the direction it faces (**Walk distance**, 1–10 m). It turns and greets a visitor who comes within about 2 m (you can switch this off). Pick its **Character**: the Robot (which you can recolour) or one of six Female characters. Each model downloads only when it's first used.
 
 ### Image fill
 
@@ -116,7 +116,7 @@ Floors, walls, shapes, the stage, posters, screens and X-banners can show an upl
 
 ### Game mode (walk-through)
 
-Open `/play`, or press **▶ Play** in the studio, to walk through the rooms **as your own character**. A third-person camera follows it from behind. It walks when you move, runs when you hold Shift, idles when you stop, and turns to face the way you're going. Press **V** (or use ⚙ → **View**) to switch to first person and back. Your choice is remembered. You start in the room you were editing, facing its doorway.
+Open `/play`, or press **▶ Play** in the studio, to walk through the rooms **as your own character**. A third-person camera follows it from behind. It walks when you move, runs when you hold Shift, idles when you stop, and turns to face the way you're going. Press **V** (or use ⚙ → **View**) to switch to first person and back. Pick who you play as on the start screen, which shows your character from the front: tap a name or use ◀ ▶ (on a keyboard, ← → then Enter). Type **Your name** there too, and it floats above your character's head. You can change both later in ⚙. Your view, character and name are remembered. You start in the room you were editing, facing its doorway.
 
 | | Laptop | Phone |
 | --- | --- | --- |
@@ -153,14 +153,14 @@ src/
   game.js             game mode: player movement, mouse/keys/gyro, room culling
   router.js           /studio and /play URLs (works under any sub-path)
   collision.js        2D footprint collision for walls and objects
-  characters.js       person: lazy-loaded GLB, idle/walk/wave, walk-through behaviour
+  characters.js       character catalogue (CHARACTERS), lazy-loaded GLBs, idle/walk/greet, walk-through behaviour
   storage.js          project JSON save/load, autosave
   ui/panels.js        tabs, library, room + properties panels, hint bar, drawer
   ui/gameHud.js       game overlay: joystick, look zone, settings, start screen
   ui/fillEditor.js    image fill controls
   ui/dom.js           small DOM helpers
   style.css
-public/models/        person.glb (character model) + CREDITS.md
+public/models/        person.glb (robot), characters/ (Kenney female characters + shared texture), CREDITS.md
 docs/SPEC.md          full product requirements
 ```
 
@@ -174,4 +174,6 @@ docs/SPEC.md          full product requirements
 
 ## Credits
 
-The person character is **RobotExpressive** by [Tomás Laulhé (Quaternius)](https://www.patreon.com/quaternius), with modifications by [Don McCurdy](https://donmccurdy.com/). It's released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain) and taken from the three.js r170 examples. See [public/models/CREDITS.md](public/models/CREDITS.md).
+The Robot character is **RobotExpressive** by [Tomás Laulhé (Quaternius)](https://www.patreon.com/quaternius), with modifications by [Don McCurdy](https://donmccurdy.com/). It's released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain) and taken from the three.js r170 examples. The Female A–F characters are from [Kenney](https://kenney.nl)'s Mini Characters pack, also CC0. See [public/models/CREDITS.md](public/models/CREDITS.md).
+
+To add another character, put its GLB in `public/models/characters/` and add an entry to `CHARACTERS` in [src/characters.js](src/characters.js) with its animation names for idle, walk, run and greet.

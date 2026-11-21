@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { defaultFill, makeFillMaterial, disposeFillMaterial, applyFill } from './textures.js';
 import { uid } from './rooms.js';
 import { SHAPE_TYPES, buildShape, applyShapeFill } from './shapes.js';
-import { buildPerson, disposePerson } from './characters.js';
+import { buildPerson, disposePerson, DEFAULT_CHARACTER } from './characters.js';
 
 export const OBJECT_TYPES = {
   poster: { label: 'Poster', color: '#f2efe8' },
@@ -35,7 +35,7 @@ export function createObjectItem(type) {
     fill: defaultFill(def.color),
   };
   // idle | patrol (walk back and forth along the direction it faces)
-  if (type === 'person') Object.assign(item, { behavior: 'idle', patrol: 3, wave: true });
+  if (type === 'person') Object.assign(item, { model: DEFAULT_CHARACTER, behavior: 'idle', patrol: 3, wave: true });
   return item;
 }
 

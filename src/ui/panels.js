@@ -6,6 +6,7 @@ import { SHAPE_TYPES, isPointShape } from '../shapes.js';
 import { OBJECT_TYPES, hasImageFill, itemLabel } from '../objects.js';
 import { doorwayRooms, doorwayFrame } from '../rooms.js';
 import { newProject, downloadProject, readProjectFile, clearAutosave } from '../storage.js';
+import { characterOptions, DEFAULT_CHARACTER, isTintable } from '../characters.js';
 
 const $ = (sel) => document.querySelector(sel);
 const mobileQuery = window.matchMedia('(max-width: 760px), (max-height: 500px)');
@@ -212,6 +213,9 @@ function renderProps(studio, toast) {
     );
   } else if (item.type === 'person') {
     nodes.push(
+      selectField('Character', item.model || DEFAULT_CHARACTER, characterOptions(), (v) => {
+        item.model = v; studio.rebuildItem(item.id); studio.changed(); studio.emit('structure');
+      }),
       h('h3', {}, 'In the walk-through'),
       selectField('Behaviour', item.behavior || 'idle', [['idle', 'Stand still'], ['patrol', 'Walk back and forth']], (v) => {
         item.behavior = v; studio.changed(); studio.emit('structure');
@@ -225,12 +229,16 @@ function renderProps(studio, toast) {
   } else if (item.type === 'sphere') {
     nodes.push(slider('Radius', item.radius, { min: 0.05, max: 3, step: 0.05, onInput: (v) => studio.updateItem(item, { radius: v }, true) }));
   }
+  // textured characters ignore the colour, so don't offer it
+  const colourable = item.type !== 'person' || isTintable(item.model);
   nodes.push(
-    h('h3', {}, hasImageFill(item) ? 'Fill' : 'Colour'),
-    fillEditor({
-      fill: item.fill, project: studio.project, image: hasImageFill(item), faces: isPointShape(item),
-      onChange: () => studio.refreshItemFill(item.id), toast,
-    }),
+    ...(colourable ? [
+      h('h3', {}, hasImageFill(item) ? 'Fill' : 'Colour'),
+      fillEditor({
+        fill: item.fill, project: studio.project, image: hasImageFill(item), faces: isPointShape(item),
+        onChange: () => studio.refreshItemFill(item.id), toast,
+      }),
+    ] : []),
     h('div', { class: 'row buttons' },
       button('Duplicate', () => studio.duplicateSelected()),
       button('Delete', () => studio.deleteSelected(), 'danger')),

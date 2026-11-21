@@ -368,5 +368,34 @@ body[data-touch=yes] .g-joy { display: block; }
   text-align: center;
 }
 .g-card p { color: var(--muted); }
+
+/* Start screen = character select: the card sits beside the avatar
+   (left on wide screens, bottom on tall ones); game.js frames the avatar to match. */
+.g-start {
+  justify-content: flex-start;
+  background: linear-gradient(90deg, rgba(15, 17, 21, 0.6), rgba(15, 17, 21, 0) 60%);
+}
+.g-start .g-card { max-height: 100%; overflow-y: auto; touch-action: pan-y; }
+@media (max-aspect-ratio: 11/10) {
+  .g-start {
+    align-items: flex-end;
+    justify-content: center;
+    background: linear-gradient(0deg, rgba(15, 17, 21, 0.6), rgba(15, 17, 21, 0) 60%);
+  }
+  .g-start .g-card { max-height: 55%; }
+}
+@media (max-height: 500px) { /* phone in landscape: keep Play on screen */
+  .g-start { padding: 10px 20px; }
+  .g-start .g-card { padding: 8px 14px 12px; }
+  .g-start .g-card h2 { margin: 4px 0 6px; }
+  .g-start .g-card p { display: none; }
+  .g-start .g-char-pick { margin: 2px 0 6px; }
+  .g-start .row.buttons { margin-top: 8px; }
+}
+.g-char-pick { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 8px; }
+.g-char-name { font-size: 1.1em; }
+.g-chars { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.g-chars button { min-height: var(--target); }
+.g-chars button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .g-rotate { z-index: 2; }
 .g-rotate-icon { font-size: 40px; color: var(--accent); }

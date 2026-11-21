@@ -4,6 +4,7 @@
 //
 // Multi-touch: each finger is tracked by pointerId, so one thumb can hold the
 // joystick while the other looks around.
+import { characterOptions, CHARACTERS, NAME_MAX } from '../characters.js';
 import { h, button, checkbox, slider, selectField, canFullscreen, isFullscreen, toggleFullscreen, enterFullscreen, onFullscreenChange } from './dom.js';
 
 const JOY_RADIUS = 56; // px of knob travel
@@ -28,7 +29,7 @@ export class GameHud {
     this.panel = h('div', { class: 'g-panel', hidden: true });
     const settingsBtn = button('⚙', () => this.togglePanel(), 'g-btn');
     settingsBtn.title = 'Settings';
-    this.start = h('div', { class: 'g-overlay', hidden: true });
+    this.start = h('div', { class: 'g-overlay g-start', hidden: true });
     this.rotate = h('div', { class: 'g-overlay g-rotate', hidden: true },
       h('div', { class: 'g-card' },
         h('div', { class: 'g-rotate-icon', 'aria-hidden': 'true' }, '⟳'),
@@ -66,6 +67,7 @@ export class GameHud {
   hide() {
     this.root.hidden = true;
     this.start.hidden = true;
+    this.game.setChoosing(false);
     this.resetInput();
   }
 
@@ -85,19 +87,54 @@ export class GameHud {
       }, 'primary'));
     }
     actions.push(button(touch ? 'Play' : 'Click to play', () => this.begin(), touch && canFullscreen() ? '' : 'primary'));
+    this.charName = h('strong', { class: 'g-char-name' });
+    this.charList = h('div', { class: 'g-chars' }, characterOptions().map(([id, label]) =>
+      h('button', { type: 'button', 'data-id': id, onClick: () => this.game.setCharacter(id) }, label)));
     this.start.replaceChildren(h('div', { class: 'g-card' },
-      h('h2', {}, 'Walk-through'),
+      h('h2', {}, 'Choose your character'),
+      this.nameField(true),
+      h('div', { class: 'g-char-pick' },
+        button('◀', () => this.game.cycleCharacter(-1), 'g-btn'),
+        this.charName,
+        button('▶', () => this.game.cycleCharacter(1), 'g-btn')),
+      this.charList,
       touch
         ? h('p', {}, 'Left thumb: move. Right thumb: swipe to look around. Switch between your character and first person in ⚙.')
-        : h('p', {}, 'W A S D or arrow keys to move, Shift to run, mouse to look, V to switch between your character and first person. Esc frees the mouse, then Esc again leaves.'),
+        : h('p', {}, '← → to choose, Enter to start. Then W A S D or arrow keys to move, Shift to run, mouse to look, V to switch between your character and first person. Esc frees the mouse, then Esc again leaves.'),
       h('div', { class: 'row buttons' }, actions),
     ));
     this.start.hidden = false;
+    this.game.setChoosing(true);
+    this.updateCharacter();
     this.updateHelp();
+  }
+
+  /** "Your name" text field. On the start screen Enter starts the walk-through. */
+  nameField(onStart) {
+    const input = h('input', {
+      type: 'text', value: this.game.settings.name, maxlength: NAME_MAX,
+      placeholder: 'Shown above your character', autocomplete: 'nickname', enterkeyhint: onStart ? 'go' : 'done',
+      onInput: (e) => this.game.setName(e.target.value),
+      onKeyDown: (e) => {
+        if (e.key !== 'Enter') return;
+        e.target.blur(); // closes the phone keyboard
+        if (onStart) this.begin();
+      },
+    });
+    return h('label', { class: 'row g-name' }, h('span', { class: 'lbl' }, 'Your name'), input);
+  }
+
+  /** Highlight the chosen character on the start screen (and in Settings). */
+  updateCharacter() {
+    const id = this.game.settings.character;
+    if (this.charName) this.charName.textContent = CHARACTERS[id]?.label || id;
+    this.charList?.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+    if (!this.panel.hidden) this.renderPanel();
   }
 
   begin() {
     this.start.hidden = true;
+    this.game.setChoosing(false);
     this.game.requestLock();
     this.updateHelp();
   }
@@ -139,6 +176,8 @@ export class GameHud {
     const nodes = [
       h('h2', {}, 'Settings'),
       selectField('View', s.view, [['third', 'Your character'], ['first', 'First person']], (v) => g.setView(v)),
+      selectField('Character', s.character, characterOptions(), (v) => g.setCharacter(v)),
+      this.nameField(false),
     ];
     if (g.touch) {
       nodes.push(
@@ -154,7 +193,7 @@ export class GameHud {
       slider('Look speed', s.lookSpeed, { min: 0.3, max: 2.5, step: 0.05, onInput: (v) => g.setSetting('lookSpeed', v) }),
       h('div', { class: 'row buttons' }, button('Close', () => this.togglePanel())),
     );
-    if (g.gyroError) nodes.splice(4, 0, h('p', { class: 'warn small' }, g.gyroError));
+    if (g.gyroError) nodes.splice(6, 0, h('p', { class: 'warn small' }, g.gyroError));
     this.panel.replaceChildren(...nodes);
   }
 

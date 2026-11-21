@@ -10,10 +10,10 @@ import { PLAYER, STEP_HEIGHT, NO_STEP, buildColliders, moveWithCollision, ground
 import { pointInPolygon, centroid } from './geometry.js';
 import { worldOutline, doorwayFrame, doorwayRooms } from './rooms.js';
 import { GameHud } from './ui/gameHud.js';
-import { Crowd, createAvatar } from './characters.js';
+import { Crowd, createAvatar, DEFAULT_CHARACTER, CHARACTERS, NAME_MAX } from './characters.js';
 
 const SETTINGS_KEY = 'room-studio:game-settings';
-const DEFAULT_SETTINGS = { tapToWalk: false, gyro: false, stepUp: true, lookSpeed: 1, view: 'third' };
+const DEFAULT_SETTINGS = { tapToWalk: false, gyro: false, stepUp: true, lookSpeed: 1, view: 'third', character: DEFAULT_CHARACTER, name: '' };
 const WALK_SPEED = 2.2;
 const RUN_SPEED = 4;
 const GRAVITY = 9.8;
@@ -24,6 +24,7 @@ const CAM_PIVOT = 1.6; // m above the feet (just above the head, so you look ove
 const CAM_DISTANCE = 2.8; // m behind
 const CAM_WALL_GAP = 0.2; // stay this far in front of a wall behind the avatar
 const CAM_HIDE_AVATAR = 1.0; // closer than this, hide the avatar so it doesn't fill the screen
+const SHOWCASE_DISTANCE = 3; // character select: camera this far in front of the avatar
 
 function loadSettings() {
   try {
@@ -150,21 +151,61 @@ export class Game {
 
   // ---------- your character ----------
   ensureAvatar() {
-    if (this.avatar || this.avatarLoading) {
+    const want = this.settings.character;
+    if (this.avatarCharacter === want) { // loaded, or loading
       this.syncAvatarVisibility();
       return;
     }
-    this.avatarLoading = createAvatar().then((a) => {
+    this.avatarCharacter = want;
+    createAvatar(want).then((a) => {
+      if (this.avatarCharacter !== want) { a.dispose(); return; } // switched again while loading
+      if (this.avatar) { // keep the old one's place and facing
+        a.root.position.copy(this.avatar.root.position);
+        a.root.rotation.copy(this.avatar.root.rotation);
+        this.avatar.dispose();
+      }
       this.avatar = a;
+      a.setName(this.settings.name);
       this.scene.add(a.root);
       this.syncAvatarVisibility();
     }).catch((err) => {
-      console.warn('Avatar failed to load; staying in first person.', err);
+      if (this.avatarCharacter === want) this.avatarCharacter = null; // allow a retry
+      console.warn('Avatar failed to load; keeping the current view.', err);
     });
   }
 
+  /** Start screen: step through the characters (dir = 1 or -1). */
+  cycleCharacter(dir) {
+    const ids = Object.keys(CHARACTERS);
+    const i = Math.max(0, ids.indexOf(this.settings.character));
+    this.setCharacter(ids[(i + dir + ids.length) % ids.length]);
+  }
+
+  /** Character select on the start screen: show the avatar from the front, beside the card. */
+  setChoosing(on) {
+    this.choosing = on;
+    this.camDist = CAM_DISTANCE;
+    this.syncAvatarVisibility();
+  }
+
+  /** Your name, shown above your character. */
+  setName(name) {
+    const clean = name.replace(/\s+/g, ' ').trim().slice(0, NAME_MAX);
+    if (clean === this.settings.name) return;
+    this.setSetting('name', clean);
+    this.avatar?.setName(clean);
+  }
+
+  /** Swap your character (Settings). The old one stays until the new model is ready. */
+  setCharacter(id) {
+    if (id === this.settings.character) return;
+    this.setSetting('character', id);
+    this.hud.updateCharacter();
+    if (this.avatarCharacter) this.ensureAvatar(); // otherwise it loads on the next entry
+  }
+
   syncAvatarVisibility() {
-    if (this.avatar) this.avatar.root.visible = this.active && this.settings.view === 'third';
+    if (this.avatar) this.avatar.root.visible = this.active && (this.choosing || this.settings.view === 'third');
     this.hud.updateView();
   }
 
@@ -191,6 +232,13 @@ export class Game {
     if (!this.active) return;
     if (e.target.closest?.('input, select, textarea')) return;
     if (down && e.code === 'Escape' && !this.locked) { this.exit(); return; }
+    if (this.choosing) { // start screen: arrows pick a character, Enter starts
+      if (!down || e.target.closest?.('button')) return;
+      if (['ArrowLeft', 'KeyA'].includes(e.code)) this.cycleCharacter(-1);
+      else if (['ArrowRight', 'KeyD'].includes(e.code)) this.cycleCharacter(1);
+      else if (e.code === 'Enter') this.hud.begin();
+      return;
+    }
     if (down && e.code === 'KeyV' && !e.repeat) { this.setView(this.settings.view === 'third' ? 'first' : 'third'); return; }
     if (down) this.keys.add(e.code); else this.keys.delete(e.code);
     if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -273,6 +321,15 @@ export class Game {
 
   // ---------- per frame ----------
   update(dt) {
+    if (this.choosing) {
+      if (this.avatar) {
+        this.placeShowcaseCamera();
+        this.updateAvatar(dt, 0, 0, 0, false);
+      }
+      this.updateVisibility();
+      this.crowd.update(dt, this.pos, this.colliders);
+      return;
+    }
     const third = this.settings.view === 'third' && this.avatar;
     this.pitch = third ? THREE.MathUtils.clamp(this.pitch, -1.2, 0.35) : THREE.MathUtils.clamp(this.pitch, -1.45, 1.45);
     const k = this.keys;
@@ -362,6 +419,30 @@ export class Game {
     this.camera.rotation.set(this.pitch, this.yaw, 0);
   }
 
+  /**
+   * Camera in front of the avatar, facing it, shifted so the avatar sits beside
+   * the start card: right of it on wide screens, above it on tall ones.
+   */
+  placeShowcaseCamera() {
+    const cam = this.camera;
+    const a = this.avatarYaw;
+    const front = new THREE.Vector3(Math.sin(a), 0, Math.cos(a)); // the model faces +z
+    const wide = cam.aspect > 1.1;
+    const chest = new THREE.Vector3(this.pos[0], this.feet + 0.9, this.pos[1]);
+    this.raycaster.set(chest, front);
+    this.raycaster.far = SHOWCASE_DISTANCE + 2 + CAM_WALL_GAP;
+    const hit = this.raycaster.intersectObjects(this.wallMeshes, false)[0];
+    let d = SHOWCASE_DISTANCE + (wide ? 0 : 1.5);
+    if (hit) d = Math.max(1.2, Math.min(d, hit.distance - CAM_WALL_GAP));
+    // move the camera so the avatar lands at (ndcX, ndcY) on screen
+    const tanV = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+    const ndcX = wide ? 0.42 : 0, ndcY = wide ? 0 : 0.42;
+    const right = new THREE.Vector3(Math.cos(a), 0, -Math.sin(a)); // camera right when looking along -front
+    cam.position.copy(chest).addScaledVector(front, d)
+      .addScaledVector(right, -ndcX * d * tanV * cam.aspect);
+    cam.rotation.set(-Math.atan(ndcY * tanV), a, 0); // tilt down rather than sink below the floor
+  }
+
   updateAvatar(dt, mx, mz, intent, running) {
     const a = this.avatar;
     a.root.position.set(this.pos[0], this.feet, this.pos[1]);
@@ -377,7 +458,7 @@ export class Game {
     }
     a.root.rotation.y = this.avatarYaw;
     // Backed against a wall the camera sits inside the character's head: hide it until there's room.
-    a.root.visible = this.settings.view === 'third' && this.camDist >= CAM_HIDE_AVATAR;
+    a.root.visible = this.choosing || (this.settings.view === 'third' && this.camDist >= CAM_HIDE_AVATAR);
     a.update(dt);
   }
 
